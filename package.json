@@ -1,11 +1,11 @@
 {
-  "name": "table-xi-exercise",
-  "title": "An HTML/JS/CSS app",
+  "name": "Table XI Exercise",
+  "title": "Isaac Sanders' Table XI interview exercise",
   "version": "0.0.1",
   "private": true,
   "author": {
-    "name": "John Doe",
-    "company": "ACME, Inc."
+    "name": "Isaac Sanders",
+    "company": "Rose-Hulman Institute of Technology"
   },
   "dependencies": {},
   "devDependencies": {

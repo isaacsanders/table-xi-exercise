@@ -13,4 +13,39 @@
 
 module.exports = require('lineman').config.extend('files', {
   //Override file patterns here
+  js: {
+    vendor: [
+      "vendor/js/jquery.js",
+      "vendor/js/underscore.js",
+      "vendor/js/backbone.js",
+      "vendor/js/backbone.localStorage.js",
+      "vendor/js/bootstrap.js",
+      "vendor/js/handlebars.js",
+      "vendor/js/**/*.js"
+    ],
+    app: [
+      "app/js/namespace.js",
+      "app/js/models.js",
+      "app/js/collections.js",
+      "app/js/views.js",
+      "app/js/routers.js",
+      "app/js/start.js",
+      "app/js/**/*.js"
+    ],
+    specHelpers: "spec/helpers/**/*.js",
+    spec: "spec/**/*.js"
+  },
+  css: {
+    vendor: [
+      "vendor/css/bootstrap.css",
+      "vendor/css/**/*.css",
+      "vendor/css/bootstrap-responsive.css"
+    ]
+  },
+  img: {
+    vendor: [
+      "vendor/img/glyphicons-halflings-white.png",
+      "vendor/img/glyphicons-halflings.png"
+    ]
+  }
 });
