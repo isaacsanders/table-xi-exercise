@@ -16464,6 +16464,139 @@ Handlebars.VM = {
 Handlebars.template = Handlebars.VM.template;
 ;
 
+(function() {
+  /**
+   * @private
+   */
+  var prioritySortLow = function(a, b) {
+    return b.priority - a.priority;
+  };
+
+  /**
+   * @private
+   */
+  var prioritySortHigh = function(a, b) {
+    return a.priority - b.priority;
+  };
+
+  /*global PriorityQueue */
+  /**
+   * @constructor
+   * @class PriorityQueue manages a queue of elements with priorities. Default
+   * is highest priority first.
+   *
+   * @param [options] If low is set to true returns lowest first.
+   */
+  PriorityQueue = function(options) {
+    var contents = [];
+
+    var sorted = false;
+    var sortStyle;
+
+    if(options && options.low) {
+      sortStyle = prioritySortLow;
+    } else {
+      sortStyle = prioritySortHigh;
+    }
+
+    /**
+     * @private
+     */
+    var sort = function() {
+      contents.sort(sortStyle);
+      sorted = true;
+    };
+
+    var self = {
+      /**
+       * Removes and returns the next element in the queue.
+       * @member PriorityQueue
+       * @return The next element in the queue. If the queue is empty returns
+       * undefined.
+       *
+       * @see PrioirtyQueue#top
+       */
+      pop: function() {
+        if(!sorted) {
+          sort();
+        }
+
+        var element = contents.pop();
+
+        if(element) {
+          return element.object;
+        } else {
+          return undefined;
+        }
+      },
+
+      /**
+       * Returns but does not remove the next element in the queue.
+       * @member PriorityQueue
+       * @return The next element in the queue. If the queue is empty returns
+       * undefined.
+       *
+       * @see PriorityQueue#pop
+       */
+      top: function() {
+        if(!sorted) {
+          sort();
+        }
+
+        var element = contents[contents.length - 1];
+
+        if(element) {
+          return element.object;
+        } else {
+          return undefined;
+        }
+      },
+
+      /**
+       * @member PriorityQueue
+       * @param object The object to check the queue for.
+       * @returns true if the object is in the queue, false otherwise.
+       */
+      includes: function(object) {
+        for(var i = contents.length - 1; i >= 0; i--) {
+          if(contents[i].object === object) {
+            return true;
+          }
+        }
+
+        return false;
+      },
+
+      /**
+       * @member PriorityQueue
+       * @returns the current number of elements in the queue.
+       */
+      size: function() {
+        return contents.length;
+      },
+
+      /**
+       * @member PriorityQueue
+       * @returns true if the queue is empty, false otherwise.
+       */
+      empty: function() {
+        return contents.length === 0;
+      },
+
+      /**
+       * @member PriorityQueue
+       * @param object The object to be pushed onto the queue.
+       * @param priority The priority of the object.
+       */
+      push: function(object, priority) {
+        contents.push({object: object, priority: priority});
+        sorted = false;
+      }
+    };
+
+    return self;
+  };
+})();
 this["JST"] = this["JST"] || {};
 
 this["JST"]["app/templates/menu.hb"] = Handlebars.template(function (Handlebars,depth0,helpers,partials,data) {
@@ -16568,12 +16701,17 @@ window.TableXIExercise = {};
 (function(root) {
   root.Models = {
     Dish: Backbone.Model.extend({
+      cost: function() {
+        return Math.round(parseFloat(this.get('cost')) * 100) / 100;
+      },
+
       initialize: function() {
-        this.set('cost', parseFloat(this.get('cost')));
+        this.set('cost', this.cost());
+        this.save();
       },
 
       validate: function() {
-        return 0 < parseFloat(this.get('cost'));
+        return 0 < this.cost();
       }
     })
   };
@@ -16584,35 +16722,61 @@ window.TableXIExercise = {};
     Menu: Backbone.Collection.extend({
       model: root.Models.Dish,
       localStorage: new Backbone.LocalStorage("tablexiexercise-collections-menu"),
-      orderFor: function(cost) {
-        var that = this;
-        var availableDishes = this.models.filter(function(dish) {
-          return dish.get('cost') <= cost;
-        });
+      orderFor: function(cost, dishes) {
+        cost = Math.round(cost * 100) / 100;
 
-        var dishes = availableDishes.reduce(function(dishes, dish) {
-          var currentCost = dishes.reduce(that.costSum, 0.0);
-          var remainder = cost - parseFloat(dish.get('cost'));
-
-          if (remainder >= 0.0) {
-            dishes = that.orderFor(remainder).dishes;
-            dishes.push(dish.toJSON());
-          }
-
-          if (remainder === dishes.reduce(that.costSum, 0.0)) {
-            return dishes;
-          } else {
-          }
-        }, []);
-
-        return {
-          dishes: dishes,
-          sum: _.reduce(dishes, that.costSum, 0.0)
+        var getCost = function(dish){
+          return dish.cost();
         };
-      },
 
-      costSum: function(cost, dish) {
-        return cost + parseFloat(dish.cost);
+        var lowerThan = function(cost) {
+          return function(dish) { return getCost(dish) <= cost; };
+        };
+
+        var dishesBelow = function(dishes) {
+          return function (cost) { return dishes.filter(lowerThan(cost)); };
+        }(this.models);
+
+        var addToQueue = function(dish) {
+          var order = _([dish]).flatten();
+          queue.push(order, order.map(getCost));
+        };
+
+        var add = function(a, b) {
+          return a + b;
+        };
+
+        var getAttrs = function(dish) {
+          return dish.attributes;
+        };
+
+        dishes = dishes ? _(dishes) : _(dishesBelow(cost));
+
+        if (cost <= 0 || dishes.isEmpty()) {
+          return [];
+        }
+
+        var queue = new PriorityQueue({low: true});
+
+        dishes.forEach(addToQueue);
+
+        var concat = function(a) {
+          return function(b){ return a.concat(b); };
+        };
+
+        while (!queue.empty()) {
+          var current = queue.pop();
+          var currentCost = Math.round(current.map(getCost).reduce(add, 0.0) * 100) / 100.0;
+          if (currentCost === cost) {
+            return current.map(getAttrs);
+          } else if (currentCost < cost) {
+            var dishesNotInCurrent = dishes.difference(current);
+            var newCombinations = dishesNotInCurrent.map(concat(current));
+            newCombinations.forEach(addToQueue);
+          }
+        }
+
+        return [];
       }
     })
   };
@@ -16638,10 +16802,14 @@ window.TableXIExercise = {};
       },
 
       render: function() {
-        var desiredCost = this.$("#desired-cost").val();
+        var desiredCost = parseFloat(this.$("#desired-cost").val());
+        var order = this.model.orderFor(desiredCost);
         var data = {
           dishes: this.model.models.map(function(dish){ return dish.toJSON(); }),
-          order: this.model.orderFor(desiredCost),
+          order: {
+            dishes: order,
+            sum: order.reduce(function(sum, dish){return sum + dish.cost;}, 0.0)
+          },
           desiredCost: desiredCost
         };
         var html = this.template(data);
