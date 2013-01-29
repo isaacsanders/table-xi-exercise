@@ -3,35 +3,61 @@
     Menu: Backbone.Collection.extend({
       model: root.Models.Dish,
       localStorage: new Backbone.LocalStorage("tablexiexercise-collections-menu"),
-      orderFor: function(cost) {
-        var that = this;
-        var availableDishes = this.models.filter(function(dish) {
-          return dish.get('cost') <= cost;
-        });
+      orderFor: function(cost, dishes) {
+        cost = Math.round(cost * 100) / 100;
 
-        var dishes = availableDishes.reduce(function(dishes, dish) {
-          var currentCost = dishes.reduce(that.costSum, 0.0);
-          var remainder = cost - parseFloat(dish.get('cost'));
-
-          if (remainder >= 0.0) {
-            dishes = that.orderFor(remainder).dishes;
-            dishes.push(dish.toJSON());
-          }
-
-          if (remainder === dishes.reduce(that.costSum, 0.0)) {
-            return dishes;
-          } else {
-          }
-        }, []);
-
-        return {
-          dishes: dishes,
-          sum: _.reduce(dishes, that.costSum, 0.0)
+        var getCost = function(dish){
+          return dish.cost();
         };
-      },
 
-      costSum: function(cost, dish) {
-        return cost + parseFloat(dish.cost);
+        var lowerThan = function(cost) {
+          return function(dish) { return getCost(dish) <= cost; };
+        };
+
+        var dishesBelow = function(dishes) {
+          return function (cost) { return dishes.filter(lowerThan(cost)); };
+        }(this.models);
+
+        var addToQueue = function(dish) {
+          var order = _([dish]).flatten();
+          queue.push(order, order.map(getCost));
+        };
+
+        var add = function(a, b) {
+          return a + b;
+        };
+
+        var getAttrs = function(dish) {
+          return dish.attributes;
+        };
+
+        dishes = dishes ? _(dishes) : _(dishesBelow(cost));
+
+        if (cost <= 0 || dishes.isEmpty()) {
+          return [];
+        }
+
+        var queue = new PriorityQueue({low: true});
+
+        dishes.forEach(addToQueue);
+
+        var concat = function(a) {
+          return function(b){ return a.concat(b); };
+        };
+
+        while (!queue.empty()) {
+          var current = queue.pop();
+          var currentCost = Math.round(current.map(getCost).reduce(add, 0.0) * 100) / 100.0;
+          if (currentCost === cost) {
+            return current.map(getAttrs);
+          } else if (currentCost < cost) {
+            var dishesNotInCurrent = dishes.difference(current);
+            var newCombinations = dishesNotInCurrent.map(concat(current));
+            newCombinations.forEach(addToQueue);
+          }
+        }
+
+        return [];
       }
     })
   };

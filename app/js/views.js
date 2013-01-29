@@ -18,10 +18,14 @@
       },
 
       render: function() {
-        var desiredCost = this.$("#desired-cost").val();
+        var desiredCost = parseFloat(this.$("#desired-cost").val());
+        var order = this.model.orderFor(desiredCost);
         var data = {
           dishes: this.model.models.map(function(dish){ return dish.toJSON(); }),
-          order: this.model.orderFor(desiredCost),
+          order: {
+            dishes: order,
+            sum: order.reduce(function(sum, dish){return sum + dish.cost;}, 0.0)
+          },
           desiredCost: desiredCost
         };
         var html = this.template(data);
